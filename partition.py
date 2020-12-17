@@ -4,7 +4,7 @@ import functools
 
 import utils
 
-K = 10 #number of piles
+K = 10 # number of piles
 POP_SIZE = 100 # population size
 MAX_GEN = 500 # maximum number of generations
 CX_PROB = 0.8 # crossover probability
@@ -30,6 +30,9 @@ def bin_weights(weights, bins):
 # the fitness function
 def fitness(ind, weights):
     bw = bin_weights(weights, ind)
+    #print(((avg - max(bw) - min(bw)) + 1))
+    # return utils.FitObjPair(fitness=1 -(max(bw) - min(bw)), 
+    #                         objective=max(bw) - min(bw))
     return utils.FitObjPair(fitness=1/(max(bw) - min(bw) + 1), 
                             objective=max(bw) - min(bw))
 
@@ -44,6 +47,15 @@ def create_pop(pop_size, create_individual):
 # the roulette wheel selection
 def roulette_wheel_selection(pop, fits, k):
     return random.choices(pop, fits, k=k)
+
+def tournament_selection(pop, fits, k):
+    result = []
+    fits_objs = list(zip(pop,fits))
+    for _ in range(k):
+        random_individuals = random.choices(fits_objs, k=10)
+        fittest_one = max(random_individuals, key=lambda x:x[1])
+        result.append(fittest_one[0])
+    return result
 
 # implements the one-point crossover of two individuals
 def one_pt_cross(p1, p2):
@@ -139,7 +151,7 @@ if __name__ == '__main__':
         # create population
         pop = create_pop(POP_SIZE, cr_ind)
         # run evolution - notice we use the pool.map as the map_fn
-        pop = evolutionary_algorithm(pop, MAX_GEN, fit, [xover, mut], roulette_wheel_selection, map_fn=pool.map, log=log)
+        pop = evolutionary_algorithm(pop, MAX_GEN, fit, [xover, mut], tournament_selection, map_fn=pool.map, log=log)
         # remember the best individual from last generation, save it to file
         bi = max(pop, key=fit)
         best_inds.append(bi)
@@ -169,8 +181,8 @@ if __name__ == '__main__':
     # you can also plot mutiple experiments at the same time using 
     # utils.plot_experiments, e.g. if you have two experiments 'default' and 
     # 'tuned' both in the 'partition' directory, you can call
-    # utils.plot_experiments('partition', ['default', 'tuned'], 
-    #                        rename_dict={'default': 'Default setting'})
+    utils.plot_experiments('partition', ['default', 'tuned'], 
+                           rename_dict={'default': 'Default setting'})
     # the rename_dict can be used to make reasonable entries in the legend - 
     # experiments that are not in the dict use their id (in this case, the 
     # legend entries would be 'Default settings' and 'tuned') 

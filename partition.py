@@ -4,23 +4,27 @@ import functools
 
 import utils
 
-K = 10 # number of piles
-POP_SIZE = 100 # population size
-MAX_GEN = 500 # maximum number of generations
-CX_PROB = 0.8 # crossover probability
-MUT_PROB = 0.2 # mutation probability
-MUT_FLIP_PROB = 0.1 # probability of chaninging value during mutation
-REPEATS = 10 # number of runs of algorithm (should be at least 10)
-OUT_DIR = 'partition' # output directory for logs
-EXP_ID = 'default' # the ID of this experiment (used to create log names)
+K = 10  # number of piles
+POP_SIZE = 100  # population size
+MAX_GEN = 500  # maximum number of generations
+CX_PROB = 0.8  # crossover probability
+MUT_PROB = 0.2  # mutation probability
+MUT_FLIP_PROB = 0.1  # probability of chaninging value during mutation
+REPEATS = 10  # number of runs of algorithm (should be at least 10)
+OUT_DIR = 'partition'  # output directory for logs
+EXP_ID = 'default'  # the ID of this experiment (used to create log names)
 
 # reads the input set of values of objects
+
+
 def read_weights(filename):
     with open(filename) as f:
         return list(map(int, f.readlines()))
 
 # computes the bin weights
 # - bins are the indices of bins into which the object belongs
+
+
 def bin_weights(weights, bins):
     bw = [0]*K
     for w, b in zip(weights, bins):
@@ -28,36 +32,46 @@ def bin_weights(weights, bins):
     return bw
 
 # the fitness function
+
+
 def fitness(ind, weights):
     bw = bin_weights(weights, ind)
-    #print(((avg - max(bw) - min(bw)) + 1))
-    # return utils.FitObjPair(fitness=1 -(max(bw) - min(bw)), 
+    # return utils.FitObjPair(fitness=1 -(max(bw) - min(bw)),
     #                         objective=max(bw) - min(bw))
-    return utils.FitObjPair(fitness=1/(max(bw) - min(bw) + 1), 
+    return utils.FitObjPair(fitness=1/(max(bw) - min(bw) + 1),
                             objective=max(bw) - min(bw))
 
 # creates the individual
+
+
 def create_ind(ind_len):
     return [random.randrange(0, K) for _ in range(ind_len)]
 
 # creates the population using the create individual function
+
+
 def create_pop(pop_size, create_individual):
     return [create_individual() for _ in range(pop_size)]
 
 # the roulette wheel selection
+
+
 def roulette_wheel_selection(pop, fits, k):
     return random.choices(pop, fits, k=k)
 
+
 def tournament_selection(pop, fits, k):
     result = []
-    fits_objs = list(zip(pop,fits))
+    fits_objs = list(zip(pop, fits))
     for _ in range(k):
         random_individuals = random.choices(fits_objs, k=10)
-        fittest_one = max(random_individuals, key=lambda x:x[1])
+        fittest_one = max(random_individuals, key=lambda x: x[1])
         result.append(fittest_one[0])
     return result
 
 # implements the one-point crossover of two individuals
+
+
 def one_pt_cross(p1, p2):
     point = random.randrange(1, len(p1))
     o1 = p1[:point] + p2[point:]
@@ -65,11 +79,49 @@ def one_pt_cross(p1, p2):
     return o1, o2
 
 # implements the "bit-flip" mutation of one individual
+
+
 def flip_mutate(p, prob, upper):
     return [random.randrange(0, upper) if random.random() < prob else i for i in p]
 
-# applies a list of genetic operators (functions with 1 argument - population) 
+
+def informed_mutate(p, weights):
+    bw = bin_weights(weights, p)
+    maximum_weight = max(bw)
+    minimum_weight = min(bw)
+    heaviest_bin = bw.index(maximum_weight)
+    lightest_bin = bw.index(minimum_weight)
+    item_in_heaviest_bin = p.index(heaviest_bin)
+    item_in_lightest_bin = p.index(lightest_bin)
+    p[item_in_heaviest_bin] = lightest_bin
+    p[item_in_lightest_bin] = heaviest_bin
+    return p
+
+
+def multi_informed_mutate(p, weights):
+    bw = bin_weights(weights, p)
+    maximum_weight = max(bw)
+    minimum_weight = min(bw)
+    heaviest_bin = bw.index(maximum_weight)
+    lightest_bin = bw.index(minimum_weight)
+    items_in_heaviest_bin = []
+    items_in_lightest_bin = []
+
+    # sort list and pop k biggest elements, if the list has enough elements
+    copy_p = sorted(p[:])
+    k = 3
+    while len(copy_p) != 0 and k != 0:
+        items_in_heaviest_bin.append(copy_p.pop())
+
+    for i in items_in_heaviest_bin:
+        p[i] = lightest_bin
+
+    return p
+
+# applies a list of genetic operators (functions with 1 argument - population)
 # to the population
+
+
 def mate(pop, operators):
     for o in operators:
         pop = o(pop)
@@ -77,6 +129,8 @@ def mate(pop, operators):
 
 # applies the cross function (implementing the crossover of two individuals)
 # to the whole population (with probability cx_prob)
+
+
 def crossover(pop, cross, cx_prob):
     off = []
     for p1, p2 in zip(pop[0::2], pop[1::2]):
@@ -90,6 +144,8 @@ def crossover(pop, cross, cx_prob):
 
 # applies the mutate function (implementing the mutation of a single individual)
 # to the whole population with probability mut_prob)
+
+
 def mutation(pop, mutate, mut_prob):
     return [mutate(p) if random.random() < mut_prob else p[:] for p in pop]
 
@@ -97,16 +153,18 @@ def mutation(pop, mutate, mut_prob):
 # arguments:
 #   pop_size  - the initial population
 #   max_gen   - maximum number of generation
-#   fitness   - fitness function (takes individual as argument and returns 
+#   fitness   - fitness function (takes individual as argument and returns
 #               FitObjPair)
-#   operators - list of genetic operators (functions with one arguments - 
+#   operators - list of genetic operators (functions with one arguments -
 #               population; returning a population)
-#   mate_sel  - mating selection (funtion with three arguments - population, 
-#               fitness values, number of individuals to select; returning the 
+#   mate_sel  - mating selection (funtion with three arguments - population,
+#               fitness values, number of individuals to select; returning the
 #               selected population)
-#   map_fn    - function to use to map fitness evaluation over the whole 
+#   map_fn    - function to use to map fitness evaluation over the whole
 #               population (default `map`)
 #   log       - a utils.Log structure to log the evolution run
+
+
 def evolutionary_algorithm(pop, max_gen, fitness, operators, mate_sel, *, map_fn=map, log=None):
     evals = 0
     for G in range(max_gen):
@@ -123,17 +181,20 @@ def evolutionary_algorithm(pop, max_gen, fitness, operators, mate_sel, *, map_fn
 
     return pop
 
+
 if __name__ == '__main__':
     # read the weights from input
     weights = read_weights('inputs/partition-easy.txt')
 
-    # use `functool.partial` to create fix some arguments of the functions 
+    # use `functool.partial` to create fix some arguments of the functions
     # and create functions with required signatures
     cr_ind = functools.partial(create_ind, ind_len=len(weights))
     fit = functools.partial(fitness, weights=weights)
     xover = functools.partial(crossover, cross=one_pt_cross, cx_prob=CX_PROB)
-    mut = functools.partial(mutation, mut_prob=MUT_PROB, 
-                            mutate=functools.partial(flip_mutate, prob=MUT_FLIP_PROB, upper=K))
+
+    mut = functools.partial(mutation, mut_prob=MUT_PROB, mutate=functools.partial(
+        multi_informed_mutate, weights=weights))
+#    mut = functools.partial(mutation, mut_prob=MUT_PROB, mutate=functools.partial(flip_mutate, prob=MUT_FLIP_PROB, upper=K))
 
     # we can use multiprocessing to evaluate fitness in parallel
     import multiprocessing
@@ -141,17 +202,18 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
 
-    # run the algorithm `REPEATS` times and remember the best solutions from 
+    # run the algorithm `REPEATS` times and remember the best solutions from
     # last generations
     best_inds = []
     for run in range(REPEATS):
         # initialize the log structure
-        log = utils.Log(OUT_DIR, EXP_ID, run, 
+        log = utils.Log(OUT_DIR, EXP_ID, run,
                         write_immediately=True, print_frequency=5)
         # create population
         pop = create_pop(POP_SIZE, cr_ind)
         # run evolution - notice we use the pool.map as the map_fn
-        pop = evolutionary_algorithm(pop, MAX_GEN, fit, [xover, mut], tournament_selection, map_fn=pool.map, log=log)
+        pop = evolutionary_algorithm(pop, MAX_GEN, fit, [
+                                     xover, mut], roulette_wheel_selection, map_fn=pool.map, log=log)
         # remember the best individual from last generation, save it to file
         bi = max(pop, key=fit)
         best_inds.append(bi)
@@ -159,14 +221,15 @@ if __name__ == '__main__':
         with open(f'{OUT_DIR}/{EXP_ID}_{run}.best', 'w') as f:
             for w, b in zip(weights, bi):
                 f.write(f'{w} {b}\n')
-        
-        # if we used write_immediately = False, we would need to save the 
+
+        # if we used write_immediately = False, we would need to save the
         # files now
         # log.write_files()
 
     # print an overview of the best individuals from each run
     for i, bi in enumerate(best_inds):
-        print(f'Run {i}: difference = {fit(bi).objective}, bin weights = {bin_weights(weights, bi)}')
+        print(
+            f'Run {i}: difference = {fit(bi).objective}, bin weights = {bin_weights(weights, bi)}')
 
     # write summary logs for the whole experiment
     utils.summarize_experiment(OUT_DIR, EXP_ID)
@@ -174,15 +237,16 @@ if __name__ == '__main__':
     # read the summary log and plot the experiment
     evals, lower, mean, upper = utils.get_plot_data(OUT_DIR, EXP_ID)
     plt.figure(figsize=(12, 8))
-    utils.plot_experiment(evals, lower, mean, upper, legend_name = 'Default settings')
+    utils.plot_experiment(evals, lower, mean, upper,
+                          legend_name='Default settings')
     plt.legend()
     plt.show()
 
-    # you can also plot mutiple experiments at the same time using 
-    # utils.plot_experiments, e.g. if you have two experiments 'default' and 
+    # you can also plot mutiple experiments at the same time using
+    # utils.plot_experiments, e.g. if you have two experiments 'default' and
     # 'tuned' both in the 'partition' directory, you can call
-    utils.plot_experiments('partition', ['default', 'tuned'], 
+    utils.plot_experiments('partition', ['default', 'tuned'],
                            rename_dict={'default': 'Default setting'})
-    # the rename_dict can be used to make reasonable entries in the legend - 
-    # experiments that are not in the dict use their id (in this case, the 
-    # legend entries would be 'Default settings' and 'tuned') 
+    # the rename_dict can be used to make reasonable entries in the legend -
+    # experiments that are not in the dict use their id (in this case, the
+    # legend entries would be 'Default settings' and 'tuned')
